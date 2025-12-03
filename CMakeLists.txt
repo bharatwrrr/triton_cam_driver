@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
-project(arena_camera_node)
+project(triton_cam_driver)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)

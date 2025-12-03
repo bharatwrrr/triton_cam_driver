@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -e
-cd /arena_camera_ros2/ros2_ws 
+cd /triton_cam_driver 
 #rosdep fix-permissions
 #rosdep update
 rosdep install --from-paths src --ignore-src -r -y;
