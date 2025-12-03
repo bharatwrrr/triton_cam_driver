@@ -3,7 +3,7 @@
 
 # linux/amd64 only for now
 #https://hub.docker.com/layers/osrf/ros/eloquent-desktop/images/sha256-742948bc521573ff962f5a7f084ba1562a319e547c3938603f8dff5d33d3466e?context=explore
-FROM osrf/ros:eloquent-desktop
+FROM osrf/ros:humble-desktop
 RUN apt-get update \
     && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/*
@@ -61,4 +61,23 @@ ADD ./arena_camera_ros_entrypoint.sh /
 ENTRYPOINT [ "/arena_camera_ros_entrypoint.sh" ]
 #CMD ["bash"]
 
-WORKDIR /arena_camera_ros2/ros2_ws
+# -----------------------------------------------------------------------------
+# Copy and Build Package (NEW ADDITION)
+# -----------------------------------------------------------------------------
+WORKDIR /triton_cam_driver_ws
+
+# Create the standard 'src' folder inside the workspace
+RUN mkdir -p src
+
+# Copy the entire package contents into the source folder
+COPY . src/triton_cam_driver/
+# -----------------------------------------------------------------------------
+
+# setup workspace -------------------------------------------------------------
+
+# setup entrypoint
+ADD ./arena_camera_ros_entrypoint.sh /
+RUN chmod +x /arena_camera_ros_entrypoint.sh # Un-commented and changed to +x
+
+ENTRYPOINT [ "/arena_camera_ros_entrypoint.sh" ]
+#CMD ["bash"]

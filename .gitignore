@@ -4,9 +4,10 @@ ve_dev
 ve_dev_debug
 log
 build
-install
+install 
 dist
 .ropeproject
 *.egg-info
 *.tar.gz
 *.whl
+ros2_ws_and_software.code-workspace
