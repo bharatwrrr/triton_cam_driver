@@ -50,6 +50,13 @@ void ArenaCameraNode::parse_parameters_()
     trigger_mode_activated_ = this->declare_parameter("trigger_mode", false);
     // no need to is_passed_trigger_mode_ because it is already a boolean
 
+    nextParameterToDeclare = "trigger_source";
+    trigger_source_ = this->declare_parameter("trigger_source", "Software");
+
+    nextParameterToDeclare = "acquisition_frame_rate";
+    acquisition_frame_rate_ = this->declare_parameter("acquisition_frame_rate", -1.0);
+    is_passed_acquisition_frame_rate_ = acquisition_frame_rate_ >= 0;
+    
     nextParameterToDeclare = "topic";
     topic_ = this->declare_parameter(
         "topic", std::string("/") + this->get_name() + "/images");
@@ -243,7 +250,9 @@ void ArenaCameraNode::publish_images_()
 
       m_pub_->publish(std::move(p_image_msg));
 
-      log_info(std::string("image ") + std::to_string(pImage->GetFrameId()) +
+      // log_info(std::string("image ") + std::to_string(pImage->GetFrameId()) +
+      //          " published to " + topic_);
+      log_info_throttle(std::string("image ") + std::to_string(pImage->GetFrameId()) +
                " published to " + topic_);
       this->m_pDevice->RequeueBuffer(pImage);
 
@@ -266,11 +275,18 @@ void ArenaCameraNode::msg_form_image_(Arena::IImage* pImage,
     //      - stamp.sec
     //      - stamp.nanosec
     //      - Frame ID
-    image_msg.header.stamp.sec =
-        static_cast<uint32_t>(pImage->GetTimestampNs() / 1000000000);
-    image_msg.header.stamp.nanosec =
-        static_cast<uint32_t>(pImage->GetTimestampNs() % 1000000000);
-    image_msg.header.frame_id = std::to_string(pImage->GetFrameId());
+    // image_msg.header.stamp.sec =
+    //     static_cast<uint32_t>(pImage->GetTimestampNs() / 1000000000);
+    // image_msg.header.stamp.nanosec =
+    //     static_cast<uint32_t>(pImage->GetTimestampNs() % 1000000000);
+
+    // seting header timestamp to ros2 timestamp:
+    image_msg.header.stamp = this->now();
+
+    // changing this to a stable frame id to avoid RViz dropping frames
+    // image_msg.header.frame_id = std::to_string(pImage->GetFrameId());
+    image_msg.header.frame_id = frame_id_;
+
 
     //
     // 2 ) Height
@@ -296,20 +312,29 @@ void ArenaCameraNode::msg_form_image_(Arena::IImage* pImage,
     //
     // 6 ) step
     //
-    // TODO could be optimized by moving it out
-    auto pixel_length_in_bytes = pImage->GetBitsPerPixel() / 8;
-    auto width_length_in_bytes = pImage->GetWidth() * pixel_length_in_bytes;
-    image_msg.step =
-        static_cast<sensor_msgs::msg::Image::_step_type>(width_length_in_bytes);
+    if (!buffer_params_initialized_) {
+      pixel_length_in_bytes_ = pImage->GetBitsPerPixel() / 8;
+      width_length_in_bytes_ = pImage->GetWidth() * pixel_length_in_bytes_;
+  
+      image_msg.step = static_cast<sensor_msgs::msg::Image::_step_type>(width_length_in_bytes_);
 
-    //
-    // 7) data
-    //
-    auto image_data_length_in_bytes = width_length_in_bytes * height_;
-    image_msg.data.resize(image_data_length_in_bytes);
+      //
+      // 7) data
+      //
+      image_data_length_in_bytes_ = width_length_in_bytes_ * height_;
+      buffer_params_initialized_ = true;
+      log_info(std::string("\tImage buffer initialized: ") + 
+               std::to_string(pImage->GetWidth()) + "x" + 
+               std::to_string(height_) + " @ " + 
+               std::to_string(pixel_length_in_bytes_) + " bytes/pixel = " + 
+               std::to_string(image_data_length_in_bytes_) + " bytes " + 
+               std::string("Width length in bytes: ") + std::to_string(width_length_in_bytes_));
+    }
+      
+    image_msg.data.resize(image_data_length_in_bytes_);
     auto x = pImage->GetData();
     std::memcpy(&image_msg.data[0], pImage->GetData(),
-                image_data_length_in_bytes);
+                image_data_length_in_bytes_);
 
   } catch (...) {
     log_warn(
@@ -425,9 +450,10 @@ void ArenaCameraNode::set_nodes_()
   set_nodes_pixelformat_();
   set_nodes_exposure_();
   set_nodes_trigger_mode_();
+  set_nodes_acquisition_frame_rate_();
   // configure Auto Negotiate Packet Size and Packet Resend
-  Arena::SetNodeValue<bool>(m_pDevice->GetTLStreamNodeMap(), "StreamAutoNegotiatePacketSize", True);
-  Arena::SetNodeValue<bool>(m_pDevice->GetTLStreamNodeMap(), "StreamPacketResendEnable", True);
+  Arena::SetNodeValue<bool>(m_pDevice->GetTLStreamNodeMap(), "StreamAutoNegotiatePacketSize", true);
+  Arena::SetNodeValue<bool>(m_pDevice->GetTLStreamNodeMap(), "StreamPacketResendEnable", true);
 
   //set_nodes_test_pattern_image_();
 }
@@ -526,6 +552,17 @@ void ArenaCameraNode::set_nodes_exposure_()
 void ArenaCameraNode::set_nodes_trigger_mode_()
 {
   auto nodemap = m_pDevice->GetNodeMap();
+
+  //for debugging
+  // std::cout << "Trigger Mode before setting " << Arena::GetNodeValue<GenICam::gcstring>(nodemap, "TriggerMode") << std::endl;
+  // std::cout << "Trigger Source before setting " << Arena::GetNodeValue<GenICam::gcstring>(nodemap, "TriggerSource") << std::endl;
+  // std::cout << "Trigger Selector before setting " << Arena::GetNodeValue<GenICam::gcstring>(nodemap, "TriggerSelector") << std::endl;
+  // std::cout << "Trigger Armed before setting " << Arena::GetNodeValue<bool>(nodemap, "TriggerArmed") << std::endl;
+  // std::cout << "LineSelector before setting " << Arena::GetNodeValue<GenICam::gcstring>(nodemap, "LineSelector") << std::endl;
+  // std::cout << "LineMode before setting " << Arena::GetNodeValue<GenICam::gcstring>(nodemap, "LineMode") << std::endl;
+  // std::cout << "LineSource before setting " << Arena::GetNodeValue<GenICam::gcstring>(nodemap, "LineSource") << std::endl;
+  
+
   if (trigger_mode_activated_) {
     if (exposure_time_ < 0) {
       log_warn(
@@ -542,21 +579,92 @@ void ArenaCameraNode::set_nodes_trigger_mode_()
     // Set the trigger source to software in order to trigger buffers
     // without the use of any additional hardware.
     // Lines of the GPIO can also be used to trigger.
-    Arena::SetNodeValue<GenICam::gcstring>(nodemap, "TriggerSource",
-                                           "Software");
-    Arena::SetNodeValue<GenICam::gcstring>(nodemap, "TriggerSelector",
-                                           "FrameStart");
+    // Arena::SetNodeValue<GenICam::gcstring>(nodemap, "TriggerSource",
+    //                                        "Software");
+    if (Arena::GetNodeValue<GenICam::gcstring>(nodemap, "TriggerSource") == "Software")
+    {
+      log_info("Setting trigger yes yes yes source to " + trigger_source_ + trigger_source_.c_str());
+      Arena::SetNodeValue<GenICam::gcstring>(nodemap, "TriggerSource", 
+        "Software");
+    }
+    else 
+    {
+      // for debugging
+      // log_info("Setting trigger source to " + trigger_source_ + trigger_source_.c_str());
+      // Arena::SetNodeValue<GenICam::gcstring>(nodemap, "LineSelector", trigger_source_.c_str());
+      // Arena::SetNodeValue<GenICam::gcstring>(nodemap, "LineMode", "Input");
+      // Arena::SetNodeValue<GenICam::gcstring>(nodemap, "LineSource", "Off");
+
+      Arena::SetNodeValue<GenICam::gcstring>(nodemap, "TriggerSource",
+                                            trigger_source_.c_str());
+
+      Arena::SetNodeValue<GenICam::gcstring>(nodemap, "TriggerSelector",
+                                            "FrameStart");
+    }
+    
     auto msg =
         std::string(
             "\ttrigger_mode is activated. To trigger an image run `ros2 run ") +
         this->get_name() + " trigger_image`";
     log_warn(msg);
   }
+
+  
+
+
   // unset device from being in trigger mode if user did not pass trigger
   // mode parameter because the trigger nodes are not rest when loading
   // the user default profile
   else {
     Arena::SetNodeValue<GenICam::gcstring>(nodemap, "TriggerMode", "Off");
+  }
+
+  // for debugging
+  std::cout << "LineSelector "<< Arena::GetNodeValue<GenICam::gcstring>(nodemap, "LineSelector") << std::endl;
+  std::cout << "LineMode " << Arena::GetNodeValue<GenICam::gcstring>(nodemap, "LineMode") << std::endl;
+  std::cout << "LineSource " << Arena::GetNodeValue<GenICam::gcstring>(nodemap, "LineSource") << std::endl;
+  std::cout << "TriggerSource " << Arena::GetNodeValue<GenICam::gcstring>(nodemap, "TriggerSource") << std::endl;
+  std::cout << "Trigger Selector " << Arena::GetNodeValue<GenICam::gcstring>(nodemap, "TriggerSelector") << std::endl;
+  std::cout << "Trigger Armed after setting " << Arena::GetNodeValue<bool>(nodemap, "TriggerArmed") << std::endl;
+}
+
+void ArenaCameraNode::set_nodes_acquisition_frame_rate_()
+{
+  if (!is_passed_acquisition_frame_rate_) {
+    log_info("\tAcquisitionFrameRate not passed, skipping setting it.");
+    return;
+  }
+
+  try {
+    auto nodemap = m_pDevice->GetNodeMap();
+
+    // Enable frame-rate control if camera requires it
+    // Some cameras have an "AcquisitionFrameRateEnable" boolean node
+    try {
+      log_info("\tEnabling AcquisitionFrameRate...");
+      Arena::SetNodeValue<GenICam::gcstring>(nodemap, "AcquisitionFrameRateEnable", "True");
+    } catch (...) {
+      log_info("\tAcquisitionFrameRateEnable node not found or not a gcstring.");
+      // If the node doesn't exist or expects bool, try bool overload
+      try {
+        log_info("\tEnabling AcquisitionFrameRate (bool)...");
+        Arena::SetNodeValue<bool>(nodemap, "AcquisitionFrameRateEnable", true);
+      } catch (...) {
+        log_info(
+            "\tAcquisitionFrameRateEnable node not found or not a bool.");
+        // node might not exist — that's fine, we'll still try to set the rate
+      }
+    }
+
+    // Set the requested frame rate
+    Arena::SetNodeValue<double>(nodemap, "AcquisitionFrameRate", acquisition_frame_rate_);
+
+    log_info(std::string("\tAcquisitionFrameRate set to ") +
+             std::to_string(acquisition_frame_rate_));
+  } catch (GenICam::GenericException& e) {
+    log_warn(std::string("Failed to set AcquisitionFrameRate: ") + e.what());
+  } catch (std::exception& e) {
+    log_warn(std::string("Failed to set AcquisitionFrameRate: ") + e.what());
   }
 }
 

@@ -23,12 +23,16 @@
 class ArenaCameraNode : public rclcpp::Node
 {
  public:
-  ArenaCameraNode() : Node("arena_camera_node")
+  ArenaCameraNode() : Node("arena_camera_node",
+    rclcpp::NodeOptions()
+    .use_intra_process_comms(true))
+
   {
     // set stdout buffer size for ROS defined size BUFSIZE
     setvbuf(stdout, NULL, _IONBF, BUFSIZ);
 
     log_info(std::string("Creating \"") + this->get_name() + "\" node");
+    frame_id_ = static_cast<std::string>(this->get_name()) + "_camera";
     parse_parameters_();
     initialize_();
     log_info(std::string("Created \"") + this->get_name() + "\" node");
@@ -41,12 +45,14 @@ class ArenaCameraNode : public rclcpp::Node
 
   void log_debug(std::string msg) { RCLCPP_DEBUG(this->get_logger(), msg.c_str()); };
   void log_info(std::string msg) { RCLCPP_INFO(this->get_logger(), msg.c_str()); };
+  void log_info_throttle(std::string msg, int frequency = 1000) { RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), frequency, msg.c_str()); };
   void log_warn(std::string msg) { RCLCPP_WARN(this->get_logger(), msg.c_str()); };
   void log_err(std::string msg) { RCLCPP_ERROR(this->get_logger(), msg.c_str()); };
 
  private:
   std::shared_ptr<Arena::ISystem> m_pSystem;
   std::shared_ptr<Arena::IDevice> m_pDevice;
+  std::string frame_id_;
 
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_pub_;
   rclcpp::TimerBase::SharedPtr m_wait_for_device_timer_callback_;
@@ -74,6 +80,10 @@ class ArenaCameraNode : public rclcpp::Node
   bool is_passed_pixelformat_ros_;
 
   bool trigger_mode_activated_;
+  std::string trigger_source_;
+
+  double acquisition_frame_rate_;
+  bool is_passed_acquisition_frame_rate_;
 
   std::string pub_qos_history_;
   bool is_passed_pub_qos_history_;
@@ -83,6 +93,12 @@ class ArenaCameraNode : public rclcpp::Node
 
   std::string pub_qos_reliability_;
   bool is_passed_pub_qos_reliability_;
+
+  // so that buffer params are computed only once: assumes no dynamic change
+  bool buffer_params_initialized_ = false;
+  size_t pixel_length_in_bytes_;
+  size_t width_length_in_bytes_;
+  size_t image_data_length_in_bytes_;
 
   void parse_parameters_();
   void initialize_();
@@ -100,6 +116,7 @@ class ArenaCameraNode : public rclcpp::Node
   void set_nodes_pixelformat_();
   void set_nodes_exposure_();
   void set_nodes_trigger_mode_();
+  void set_nodes_acquisition_frame_rate_();
   void set_nodes_test_pattern_image_();
   void publish_images_();
 
