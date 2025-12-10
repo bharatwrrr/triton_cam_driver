@@ -16,6 +16,8 @@
 #include <rclcpp/timer.hpp>           // WallTimer
 #include <sensor_msgs/msg/image.hpp>  //image msg published
 #include <std_srvs/srv/trigger.hpp>   // Trigger
+#include <image_transport/image_transport.hpp>
+
 
 // arena sdk
 #include "ArenaApi.h"
@@ -54,9 +56,12 @@ class ArenaCameraNode : public rclcpp::Node
   std::shared_ptr<Arena::IDevice> m_pDevice;
   std::string frame_id_;
 
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_pub_;
   rclcpp::TimerBase::SharedPtr m_wait_for_device_timer_callback_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr m_trigger_an_image_srv_;
+
+  // image transport publisher
+  image_transport::Publisher m_pub_;
+  size_t last_num_subscribers_ = 0;
 
   std::string serial_;
   bool is_passed_serial_;

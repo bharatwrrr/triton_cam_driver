@@ -176,15 +176,9 @@ void ArenaCameraNode::initialize_()
     }
   }
 
-  // rmw_qos_history_policy_t history_policy_ = RMW_QOS_
-  // rmw_qos_history_policy_t;
-  // auto pub_qos_init = rclcpp::QoSInitialization(history_policy_, );
-
-  m_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
-      this->get_parameter("topic").as_string(), pub_qos_);
-
   std::stringstream pub_qos_info;
   auto pub_qos_profile = pub_qos_.get_rmw_qos_profile();
+  m_pub_ = image_transport::create_publisher(this, topic_, pub_qos_profile);
   pub_qos_info
       << '\t' << "QoS history     = "
       << K_QOS_HISTORY_POLICY_TO_CMDLN_PARAMETER[pub_qos_profile.history]
@@ -196,8 +190,9 @@ void ArenaCameraNode::initialize_()
                << K_QOS_RELIABILITY_POLICY_TO_CMDLN_PARAMETER[pub_qos_profile
                                                                   .reliability]
                << '\n';
-
+  
   log_info(pub_qos_info.str());
+
 }
 
 void ArenaCameraNode::wait_for_device_timer_callback_()
@@ -248,7 +243,7 @@ void ArenaCameraNode::publish_images_()
       pImage = m_pDevice->GetImage(1000);
       msg_form_image_(pImage, *p_image_msg);
 
-      m_pub_->publish(std::move(p_image_msg));
+      m_pub_.publish(std::move(p_image_msg));
 
       // log_info(std::string("image ") + std::to_string(pImage->GetFrameId()) +
       //          " published to " + topic_);
@@ -271,20 +266,10 @@ void ArenaCameraNode::msg_form_image_(Arena::IImage* pImage,
                                       sensor_msgs::msg::Image& image_msg)
 {
   try {
-    // 1 ) Header
-    //      - stamp.sec
-    //      - stamp.nanosec
-    //      - Frame ID
-    // image_msg.header.stamp.sec =
-    //     static_cast<uint32_t>(pImage->GetTimestampNs() / 1000000000);
-    // image_msg.header.stamp.nanosec =
-    //     static_cast<uint32_t>(pImage->GetTimestampNs() % 1000000000);
-
     // seting header timestamp to ros2 timestamp:
     image_msg.header.stamp = this->now();
 
     // changing this to a stable frame id to avoid RViz dropping frames
-    // image_msg.header.frame_id = std::to_string(pImage->GetFrameId());
     image_msg.header.frame_id = frame_id_;
 
 
@@ -309,28 +294,37 @@ void ArenaCameraNode::msg_form_image_(Arena::IImage* pImage,
     // TODO what to do if unknown
     image_msg.is_bigendian = pImage->GetPixelEndianness() ==
                              Arena::EPixelEndianness::PixelEndiannessBig;
-    //
-    // 6 ) step
-    //
+
+    // only compute step for the first image
     if (!buffer_params_initialized_) {
+        
       pixel_length_in_bytes_ = pImage->GetBitsPerPixel() / 8;
       width_length_in_bytes_ = pImage->GetWidth() * pixel_length_in_bytes_;
-  
+      
+      // Calculate step (width in bytes)
       image_msg.step = static_cast<sensor_msgs::msg::Image::_step_type>(width_length_in_bytes_);
 
-      //
-      // 7) data
-      //
+      // Calculate total buffer size
       image_data_length_in_bytes_ = width_length_in_bytes_ * height_;
-      buffer_params_initialized_ = true;
-      log_info(std::string("\tImage buffer initialized: ") + 
+
+      // Cache the new values
+      last_encoding_ = image_msg.encoding;
+      last_width_ = image_msg.width;
+      last_height_ = image_msg.height;
+
+      // Log initialization info (using the existing log_info structure)
+      log_info(std::string("\tImage buffer re-initialized: ") + 
                std::to_string(pImage->GetWidth()) + "x" + 
                std::to_string(height_) + " @ " + 
                std::to_string(pixel_length_in_bytes_) + " bytes/pixel = " + 
                std::to_string(image_data_length_in_bytes_) + " bytes " + 
                std::string("Width length in bytes: ") + std::to_string(width_length_in_bytes_));
+      buffer_params_initialized_ = true;
     }
-      
+    else {
+      // If no change, use the cached step size
+      image_msg.step = static_cast<sensor_msgs::msg::Image::_step_type>(width_length_in_bytes_);
+    }
     image_msg.data.resize(image_data_length_in_bytes_);
     auto x = pImage->GetData();
     std::memcpy(&image_msg.data[0], pImage->GetData(),
@@ -385,7 +379,7 @@ void ArenaCameraNode::publish_an_image_on_trigger_(
     auto msg = std::string("image ") + std::to_string(pImage->GetFrameId()) +
                " published to " + topic_;
     msg_form_image_(pImage, *p_image_msg);
-    m_pub_->publish(std::move(p_image_msg));
+    m_pub_.publish(std::move(p_image_msg));
     response->message = msg;
     response->success = true;
 
