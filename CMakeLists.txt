@@ -1,16 +1,10 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.5)
 
 project(triton_cam_driver)
 
-# Default to C99
-if(NOT CMAKE_C_STANDARD)
-  set(CMAKE_C_STANDARD 99)
-endif()
-
-# Default to C++14
-if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
-endif()
+# Default C++ Settings
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	# linked GenICam hearders give warnings No such file or directory
@@ -49,6 +43,9 @@ find_package(std_srvs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(arena_sdk REQUIRED)
 
+find_package(image_transport REQUIRED)
+
+
 # ------------
 # EXPORT DEPS
 # ------------
@@ -78,10 +75,20 @@ find_package(arena_sdk REQUIRED)
 # -------------
 
 # install launch files.
-#install(
-#  DIRECTORY launch
-#  DESTINATION share/${PROJECT_NAME}/
-# )
+install(
+ DIRECTORY launch
+ DESTINATION share/${PROJECT_NAME}/
+)
+
+install(
+  DIRECTORY config
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY scripts
+  DESTINATION share/${PROJECT_NAME}
+)
 
 # --------
 # HEADERS
@@ -116,6 +123,8 @@ add_executable(${target_name}
     src/rclcpp_adapter/pixelformat_translation.cpp
     src/rclcpp_adapter/quilty_of_service_translation.cpp
 )
+add_executable(image_compressor src/compress_node.cpp)
+
 
 # HEADERS DEP
 #target_include_directories(${target_name}
@@ -145,12 +154,18 @@ ament_target_dependencies(${target_name}  rclcpp
                                           arena_sdk
                                           )
 
+ament_target_dependencies(image_compressor rclcpp image_transport sensor_msgs)
+
+
 
 # MV EXEC to lib dir
 install(TARGETS
   ${target_name} 
     DESTINATION lib/${PROJECT_NAME}
 )
+
+install(TARGETS image_compressor
+        DESTINATION lib/${PROJECT_NAME})
 
 # -----------------------------------------------------------------------------
 #
