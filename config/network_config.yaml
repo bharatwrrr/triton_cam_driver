@@ -1,0 +1,13 @@
+# Note: These are NOT ROS parameters.
+# This is just a custom configuration file for our launch system to read.
+subnet_mask: '255.255.255.0'
+gateway: '0.0.0.0'
+arena_sdk_path_env: 'ARENA_SDK_UTILS_PATH'
+
+cameras:
+  triton_left:
+    mac: '1C0FAF96509F' # cross check this
+    ip: '10.42.0.201'
+  triton_right:
+    mac: '1C0FAF000002' # check this too
+    ip: '10.42.0.202'

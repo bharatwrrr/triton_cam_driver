@@ -1,0 +1,13 @@
+/**:
+  ros__parameters:
+      # Configuration parameters that should be applied:
+    topic: '/triton_left/images'  # Your custom topic name
+    pixelformat: 'rgb8'           # Example: Set pixel format
+    gain: 25.0                    # Example: Set gain
+    exposure_time: 10000.0        # Example: Set exposure (40 ms)
+    trigger_mode: False           # Example: Set trigger mode
+    trigger_source: "Software"       # Default: set to "Software"
+    
+    # ROS 2 Standard Parameters (if needed by your driver)
+    qos_reliability: 'best_effort'
+    acquisition_frame_rate: 10.0   # Example: Set frame rate
