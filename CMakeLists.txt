@@ -152,6 +152,7 @@ ament_target_dependencies(${target_name}  rclcpp
                                           std_srvs
                                           sensor_msgs
                                           arena_sdk
+                                          image_transport
                                           )
 
 ament_target_dependencies(image_compressor rclcpp image_transport sensor_msgs)
