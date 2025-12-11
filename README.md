@@ -1,12 +1,32 @@
-# Report an issue
-Please reach out to the support team https://support.thinklucid.com/contact-support/ 
-Or email to support@thinklucid.com
+# What?
 
-# arena_camera_ros2
-Arena Camera deriver for ROS2
+This repository provides a ROS2 driver and supporting tools for the Triton TRI023 GigE camera, enabling image publishing for downstream processing and LiDAR-based sensor fusion.
 
-# Note
-- Please provide your feedback is welcomed at support@thinklucid.com or the repo issue page
+# Why?
+
+The upstream project lacked recent maintenance and features I needed (dual-camera support, configurable QoS, trigger-based capture, and other improvements), so I forked and updated it to be more reliable and extensible for my use cases.
+
+# Changelog
+
+## Added Features and Changes
+
+1. **Dual Camera Support**:
+   - Introduced a `dual_camera.launch.py` file to configure and launch two Triton cameras simultaneously.
+   - Added a `configure_ips.sh` script to assign IP addresses to both cameras dynamically.
+
+2. **Enhanced Configuration**:
+   - Updated `triton_left_params.yaml` to include custom topics, pixel formats, and QoS settings.
+   - Added `republish_qos.xml` and `republish_qos.yaml` for better QoS management.
+
+3. **Trigger Image Client**:
+   - Modified `trigger_image_client.cpp` to make the service name dynamic and allow triggering images for multiple devices.
+
+4. **Miscellaneous**:
+   - Removed unused files like `COLCON_IGNORE`.
+   - Added placeholders like `persist.json` for future persistence-related features.
+
+These changes were made to ensure the repository is functional, extensible, and tailored to my specific use case.
+
       
 # Requirements
 - 1 
